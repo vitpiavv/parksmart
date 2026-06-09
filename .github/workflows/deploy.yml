@@ -1,0 +1,50 @@
+name: ParkSmart CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+  id-token: write # Required for fetching the OIDC token
+
+env:
+  PROJECT_ID: your-gcp-project-id
+  REGION: us-central1
+  GAR_LOCATION: us-central1-docker.pkg.dev/your-gcp-project-id/parksmart-repo/parksmart-app
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    # Authentication via Workload Identity Federation
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: 'projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider'
+        service_account: 'github-actions-sa@your-gcp-project-id.iam.gserviceaccount.com'
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Configure Docker for GCP
+      run: gcloud auth configure-docker us-central1-docker.pkg.dev
+
+    # Build and Push Container
+    - name: Build and Push Docker Image
+      run: |
+        docker build -t ${{ env.GAR_LOCATION }}:${{ github.sha }} .
+        docker push ${{ env.GAR_LOCATION }}:${{ github.sha }}
+
+    # Deploy via Terraform
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Terraform Init & Apply
+      run: |
+        cd terraform
+        terraform init
+        terraform apply -var="image_tag=${{ github.sha }}" -auto-approve
