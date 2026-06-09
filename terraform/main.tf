@@ -6,12 +6,12 @@ terraform {
       version = "~> 5.0"
     }
   }
-    backend "gcs" {
-    bucket = "YOUR_PROJECT_ID-tf-state" # Must match the bucket you just created
+  backend "gcs" {
+    bucket = "parksmart-498918-tf-state" # Must match the bucket you just created
     prefix = "terraform/state"
   }
 }
-  # Note: For production, configure a GCS backend here to store your state file securely
+# Note: For production, configure a GCS backend here to store your state file securely
 
 provider "google" {
   project = var.project_id
@@ -91,7 +91,7 @@ resource "google_cloud_run_v2_service" "flask_app" {
 
     containers {
       image = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.repo.repository_id}/parksmart-app:${var.image_tag}"
-      
+
       ports {
         container_port = 8080
       }
