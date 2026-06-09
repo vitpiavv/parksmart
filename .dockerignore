@@ -1,0 +1,20 @@
+# Ignore infrastructure and deployment configurations
+terraform/
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+
+# Ignore Git and CI/CD workflows
+.git
+.github
+.gitignore
+
+# Ignore Python environment and cache bloat
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+venv/
+.pytest_cache/
