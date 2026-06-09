@@ -24,4 +24,4 @@ COPY . /app/
 EXPOSE 8080
 
 # Run the web service using Gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "2", "--threads", "4", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "2", "--threads", "4", "app.app:app"]
