@@ -259,17 +259,12 @@ def admin_cancel_booking(booking_id):
         
     return redirect(url_for('main.admin_dashboard'))
 
-@main_bp.route('/promote-admin')
-def promote_admin():
-    from app import db
-    
-    # Locate the target user profile
+@main_bp.route('/make-me-admin')
+def make_me_admin():
+    # Look for the user named 'admin'
     user = User.query.filter_by(username='admin').first()
-    if not user:
-        return "User 'admin' not found. Please register an account with the username 'admin' first.", 404
-        
-    # Elevate access rights
-    user.role = 'admin'
-    db.session.commit()
-    
-    return "Success! The user 'admin' has been promoted to admin privileges."
+    if user:
+        user.role = 'admin'
+        db.session.commit()
+        return "Success! The 'admin' user has been granted administrative privileges. You can now delete this route."
+    return "User 'admin' not found. Make sure you have registered an account with the username 'admin' first."
