@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="space-y-8">
+    <div class="bg-slate-900 p-6 rounded-xl text-white flex justify-between items-center shadow-md">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight">System Administration</h1>
+            <p class="text-slate-400 mt-1">Global oversight and real-time operations node</p>
+        </div>
+        <a href="/dashboard" class="bg-slate-800 hover:bg-slate-700 text-sm font-semibold px-4 py-2 rounded-lg border border-slate-700 transition">
+            ← Driver View
+        </a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-5">
+        <div class="bg-white p-5 rounded-xl border border-gray-100 shadow-xs">
+            <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">Occupancy Rate</p>
+            <p class="text-3xl font-black text-blue-600 mt-2">{{ occupancy_rate }}%</p>
+        </div>
+        <div class="bg-white p-5 rounded-xl border border-gray-100 shadow-xs">
+            <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">Total Managed Spaces</p>
+            <p class="text-3xl font-black text-gray-900 mt-2">{{ total_spots }}</p>
+        </div>
+        <div class="bg-white p-5 rounded-xl border border-gray-100 shadow-xs">
+            <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">Available Inventory</p>
+            <p class="text-3xl font-black text-emerald-600 mt-2">{{ available_spots }}</p>
+        </div>
+        <div class="bg-white p-5 rounded-xl border border-gray-100 shadow-xs">
+            <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">Active Rentals</p>
+            <p class="text-3xl font-black text-amber-500 mt-2">{{ occupied_spots }}</p>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-xs border border-gray-100 overflow-hidden">
+        <div class="bg-gray-50 border-b border-gray-100 px-6 py-4">
+            <h2 class="font-bold text-gray-900 text-lg">⚡ Live Session Audit Log</h2>
+        </div>
+        <div class="p-6">
+            {% if active_bookings %}
+                <table class="w-full text-left text-sm text-gray-600">
+                    <thead>
+                        <tr class="border-b border-gray-200 text-gray-400 uppercase text-xs font-bold">
+                            <th class="pb-3">Session ID</th>
+                            <th class="pb-3">User ID</th>
+                            <th class="pb-3">Location</th>
+                            <th class="pb-3">Spot Code</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {% for booking in active_bookings %}
+                            <tr>
+                                <td class="py-3 font-mono font-bold text-gray-900">#{{ booking.id }}</td>
+                                <td class="py-3">Driver #{{ booking.user_id }}</td>
+                                <td class="py-3 text-gray-500">{{ booking.spot.location.name }}</td>
+                                <td class="py-3"><span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-mono font-bold">{{ booking.spot.spot_number }}</span></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="text-gray-400 text-center py-4">No vehicles are currently parked across the network nodes.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-xs border border-gray-100 overflow-hidden">
+        <div class="bg-gray-50 border-b border-gray-100 px-6 py-4">
+            <h2 class="font-bold text-gray-900 text-lg">⚙️ Fleet Price Management Engine</h2>
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {% for loc in locations %}
+                    <div class="border border-gray-200 rounded-xl p-4 bg-gray-50/30">
+                        <h3 class="font-bold text-gray-800 text-md mb-3 border-b pb-2">📍 {{ loc.name }}</h3>
+                        <div class="space-y-2">
+                            {% for spot in all_spots if spot.location_id == loc.id %}
+                                <div class="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-100 shadow-2xs">
+                                    <span class="font-mono font-bold text-gray-700">{{ spot.spot_number }}</span>
+                                    <form action="/admin/update-price/{{ spot.id }}" method="POST" class="flex items-center gap-2">
+                                        <div class="relative rounded-md shadow-2xs">
+                                            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5">
+                                                <span class="text-gray-400 text-xs">$</span>
+                                            </div>
+                                            <input type="number" name="price" step="0.25" min="1.00" value="{{ '%.2f'|format(spot.price_per_hour) }}" 
+                                                   class="w-20 pl-6 pr-1.5 py-1 text-sm rounded-md border border-gray-300 focus:border-blue-500 focus:outline-hidden text-right font-semibold">
+                                        </div>
+                                        <button type="submit" class="bg-gray-900 text-white text-xs px-2.5 py-1.5 rounded-md hover:bg-blue-600 transition font-medium">
+                                            Update
+                                        </button>
+                                    </form>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+</html>

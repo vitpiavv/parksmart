@@ -189,3 +189,51 @@ def reserve_spot(spot_id):
 
     # Redirect right back to the active location tab view
     return redirect(url_for('main.dashboard', location=spot.location.name))
+
+@main_bp.route('/admin/dashboard')
+def admin_dashboard():
+    # Security Guardrails: Must be logged in AND an admin
+    if not session.get('user_id'):
+        return redirect(url_for('main.login'))
+    if session.get('role') != 'admin':
+        return "Access Denied: Administrative privileges required.", 403
+
+    # 1. Fetch all locations and spots for overview panels
+    locations = Location.query.all()
+    all_spots = ParkingSpot.query.all()
+    
+    # 2. Calculate quick high-level business metrics
+    total_spots = len(all_spots)
+    occupied_spots = len([s for s in all_spots if not s.is_available])
+    available_spots = total_spots - occupied_spots
+    
+    # Calculate occupancy rate percentage safely
+    occupancy_rate = (occupied_spots / total_spots * 100) if total_spots > 0 else 0
+
+    # 3. Get all active transactions to show who is parked where
+    active_bookings = Booking.query.filter_by(status='active').all()
+
+    return render_template(
+        'admin_dashboard.html',
+        locations=locations,
+        all_spots=all_spots,
+        total_spots=total_spots,
+        occupied_spots=occupied_spots,
+        available_spots=available_spots,
+        occupancy_rate=round(occupancy_rate, 1),
+        active_bookings=active_bookings
+    )
+
+@main_bp.route('/admin/update-price/<int:spot_id>', methods=['POST'])
+def update_price(spot_id):
+    if session.get('role') != 'admin':
+        return "Unauthorized", 403
+        
+    spot = ParkingSpot.query.get_or_404(spot_id)
+    new_price = request.form.get('price', type=float)
+    
+    if new_price and new_price > 0:
+        spot.price_per_hour = new_price
+        db.session.commit()
+        
+    return redirect(url_for('main.admin_dashboard'))
