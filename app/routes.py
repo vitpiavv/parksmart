@@ -79,32 +79,59 @@ def dashboard():
 def seed_spots():
     db.create_all()
     
-    # 1. Seed Locations if they are empty
+    # 1. Seed Locations
     if Location.query.count() == 0:
-        downtown = Location(name="Seattle Downtown Lot", address="2764 1st Ave S, Seattle, WA 98134")
-        east_lot = Location(name="East Tacoma Lot", address="2617 E L St, Tacoma, WA 98421")
-        db.session.add_all([downtown, east_lot])
-        db.session.commit() # Save to generate IDs
+        seattle = Location(
+            name="Seattle Downtown Lot", 
+            address="2764 1st Ave S, Seattle, WA 98134"
+        )
+        tacoma = Location(
+            name="East Tacoma Lot", 
+            address="2617 E L St, Tacoma, WA 98421"
+        )
+        db.session.add_all([seattle, tacoma])
+        db.session.commit()
         
-    # 2. Seed Parking Spots with location-specific pricing
+    # 2. Seed an expanded collection of 10 Parking Spots per lot
     if ParkingSpot.query.count() == 0:
-        downtown_id = Location.query.filter_by(name="Seattle Downtown Lot").first().id
-        east_lot_id = Location.query.filter_by(name="East Tacoma Lot").first().id
+        seattle_id = Location.query.filter_by(name="Seattle Downtown Lot").first().id
+        tacoma_id = Location.query.filter_by(name="East Tacoma Lot").first().id
 
-        sample_spots = [
-            # Premium Downtown Garage Spots ($7.50/hr)
-            ParkingSpot(spot_number="DT-101", is_available=True, price_per_hour=7.50, location_id=downtown_id),
-            ParkingSpot(spot_number="DT-102", is_available=False, price_per_hour=7.50, location_id=downtown_id),
-            
-            # Economy East Suburb Lot Spots ($4.00/hr)
-            ParkingSpot(spot_number="E-201", is_available=True, price_per_hour=4.00, location_id=east_lot_id),
-            ParkingSpot(spot_number="E-202", is_available=True, price_per_hour=4.00, location_id=east_lot_id)
-        ]
+        sample_spots = []
+
+        # Generate 10 Premium Seattle Spots (SEA-01 through SEA-10) at $7.50/hr
+        # Alternate availability states so the dashboard UI shows realistic activity
+        for i in range(1, 11):
+            # Formats single digits cleanly with a leading zero (e.g., SEA-01, SEA-02)
+            spot_num = f"SEA-{i:02d}"
+            is_avail = (i % 3 != 0) # Every third spot is occupied
+            sample_spots.append(
+                ParkingSpot(
+                    spot_number=spot_num, 
+                    is_available=is_avail, 
+                    price_per_hour=7.50, 
+                    location_id=seattle_id
+                )
+            )
+
+        # Generate 10 Economy Tacoma Spots (TAC-01 through TAC-10) at $4.00/hr
+        for i in range(1, 11):
+            spot_num = f"TAC-{i:02d}"
+            is_avail = (i % 4 != 0) # Every fourth spot is occupied
+            sample_spots.append(
+                ParkingSpot(
+                    spot_number=spot_num, 
+                    is_available=is_avail, 
+                    price_per_hour=4.00, 
+                    location_id=tacoma_id
+                )
+            )
+
         db.session.bulk_save_objects(sample_spots)
         db.session.commit()
-        return "Database successfully rebuilt and seeded with locations! Go back to /dashboard."
+        return "Database successfully seeded with 20 premium and economy spots across Seattle & Tacoma! Go back to /dashboard."
     
-    return "Data already exists. Go back to /dashboard."
+    return "Data already exists."
 
 @main_bp.route('/clear-db')
 def clear_db():
