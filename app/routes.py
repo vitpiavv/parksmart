@@ -63,55 +63,45 @@ def login():
 
     return redirect(url_for('main.dashboard'))
 
-@main_bp.route('/dashboard')
-def dashboard():
-    if not session.get('user_id'):
-        return redirect(url_for('main.login'))
-
-    spots = ParkingSpot.query.all()    
-    return render_template('dashboard.html')
-
 @main_bp.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('main.welcome'))
 
+@main_bp.route('/dashboard')
+def dashboard():
+    if not session.get('user_id'):
+        return redirect(url_for('main.login'))        
+    spots = ParkingSpot.query.all()
+    return render_template('dashboard.html', spots=spots)
+
 @main_bp.route('/seed-spots')
 def seed_spots():
     db.create_all()
     
-    # 1. Seed Locations first if they don't exist
+    # 1. Seed Locations if they are empty
     if Location.query.count() == 0:
         downtown = Location(name="Seattle Downtown Lot", address="2764 1st Ave S, Seattle, WA 98134")
         east_lot = Location(name="East Tacoma Lot", address="2617 E L St, Tacoma, WA 98421")
         db.session.add_all([downtown, east_lot])
-        db.session.commit() # Commit to generate IDs
+        db.session.commit() # Save to generate IDs
         
-    # 2. Seed Parking Spots with different pricing based on location
+    # 2. Seed Parking Spots with location-specific pricing
     if ParkingSpot.query.count() == 0:
         downtown_id = Location.query.filter_by(name="Seattle Downtown Lot").first().id
         east_lot_id = Location.query.filter_by(name="East Tacoma Lot").first().id
 
         sample_spots = [
-            # Premium Downtown Spots
+            # Premium Downtown Garage Spots ($7.50/hr)
             ParkingSpot(spot_number="DT-101", is_available=True, price_per_hour=7.50, location_id=downtown_id),
             ParkingSpot(spot_number="DT-102", is_available=False, price_per_hour=7.50, location_id=downtown_id),
             
-            # Economy East Lot Spots
+            # Economy East Suburb Lot Spots ($4.00/hr)
             ParkingSpot(spot_number="E-201", is_available=True, price_per_hour=4.00, location_id=east_lot_id),
             ParkingSpot(spot_number="E-202", is_available=True, price_per_hour=4.00, location_id=east_lot_id)
         ]
         db.session.bulk_save_objects(sample_spots)
         db.session.commit()
-        return "Database successfully seeded with locations and multi-priced spots!"
-        
-    return "Data already exists."
-
-@main_bp.route('/clear-db')
-def clear_db():
-    try:
-        # Drops all tables defined in your models tracking
-        db.drop_all()
-        return "Database tables successfully dropped! Your Cloud SQL instance is now a clean slate. Time to push your updated models."
-    except Exception as e:
-        return f"An error occurred while clearing the database: {str(e)}", 500
+        return "Database successfully rebuilt and seeded with locations! Go back to /dashboard."
+    
+    return "Data already exists. Go back to /dashboard."
