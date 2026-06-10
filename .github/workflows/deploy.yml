@@ -21,68 +21,65 @@ jobs:
     name: Build, Scan, and Deploy
     runs-on: ubuntu-latest
 
-    steps:
-    # 1. Checkout the source code
-    - name: Checkout Code
-      uses: actions/checkout@v4
+steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    # 2. Authenticate to Google Cloud using WIF
-    - name: Authenticate to Google Cloud
-      id: auth
-      uses: google-github-actions/auth@v2
-      with:
-        token_format: 'access_token'
-        workload_identity_provider: 'projects/913391093003/locations/global/workloadIdentityPools/parksmart-pool/providers/parksmart-provider'
-        service_account: 'github-deployer@parksmart-498918.iam.gserviceaccount.com'
+      # 1. Authenticate to GCP via Workload Identity Federation
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          workload_identity_provider: 'projects/913391093003/locations/global/workloadIdentityPools/parksmart-pool/providers/parksmart-provider'
+          service_account: 'github-deployer@parksmart-498918.iam.gserviceaccount.com'
 
-    # 3. Setup Terraform
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: '1.5.7'
+      # 2. NEW STEP: Fetch Secrets Natively from Google Secret Manager
+      - id: 'secrets'
+        name: 'Fetch Secrets from GCP Secret Manager'
+        uses: 'google-github-actions/get-secretmanager-secrets@v2'
+        with:
+          secrets: |-
+            DB_PASSWORD:projects/parksmart-498918/secrets/db-password/versions/latest
+            SNYK_TOKEN:projects/parksmart-498918/secrets/snyk-token/versions/latest
 
-    # 4. Initialize Terraform (Uses your GCS Remote State Backend)
-    - name: Terraform Init
-      run: terraform init
-      working-directory: ${{ env.TF_WORKING_DIR }}
+      # 3. Set up Terraform CLI
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.5.7'
 
-    # 5. Target Apply for Artifact Registry
-    # This solves the "chicken-and-egg" issue by creating the container registry 
-    # BEFORE we build/push the Docker image.
-    - name: Infrastructure Prep (Artifact Registry Only)
-      run: terraform apply -target=google_artifact_registry_repository.repo -auto-approve -var="project_id=${{ env.PROJECT_ID }}" -var="db_password=${{ secrets.DB_PASSWORD }}"
-      working-directory: ${{ env.TF_WORKING_DIR }}
+      # 4. Initialize Terraform
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./terraform
 
-    # 6. Authenticate Docker to GCP Artifact Registry
-    - name: Docker Auth to GCP
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGION }}-docker.pkg.dev
-        username: oauth2accesstoken
-        password: ${{ steps.auth.outputs.access_token }}
+      # 5. Build the application image 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    # 7. Build the Docker Container locally (Tagging it with the Git Commit SHA)
-    - name: Build Docker Image
-      run: |
-        docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+      - name: Build Docker Image
+        run: |
+          docker build -t us-central1-docker.pkg.dev/parksmart-498918/parksmart-repo/parksmart-frontend:${{ github.sha }} .
 
-    # 8. DevSecOps Tooling: Scan image for vulnerabilities using Aquasec Trivy
-    - name: Run Trivy Vulnerability Scanner
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: '${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}'
-        format: 'table'
-        exit-code: '1' # Stops the pipeline if severe vulnerabilities are found
-        ignore-unfixed: true
-        severity: 'CRITICAL,HIGH'
+      # 6. UPDATED STEP: Swap Trivy for Snyk Container Scan
+      - name: Run Snyk to check Docker image for vulnerabilities
+        uses: snyk/actions/docker@master
+        env:
+          SNYK_TOKEN: ${{ steps.secrets.outputs.SNYK_TOKEN }}
+        with:
+          image: us-central1-docker.pkg.dev/parksmart-498918/parksmart-repo/parksmart-frontend:${{ github.sha }}
+          args: --file=Dockerfile --severity-threshold=high
 
-    # 9. Push the verified container to GCP Artifact Registry
-    - name: Push Docker Image to GAR
-      run: |
-        docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+      # 7. Configure Docker credential helper
+      - name: Configure Docker for GCP
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
-    # 10. Final Full Infrastructure Deployment
-    # Deploys Cloud Run, Cloud SQL, Buckets, and updates Cloud Run to use our newly pushed image tag
-    - name: Full Terraform Apply
-      run: terraform apply -auto-approve -var="project_id=${{ env.PROJECT_ID }}" -var="db_password=${{ secrets.DB_PASSWORD }}" -var="image_tag=${{ github.sha }}"
-      working-directory: ${{ env.TF_WORKING_DIR }}
+      # 8. Push Image to Artifact Registry
+      - name: Push Docker Image
+        run: |
+          docker push us-central1-docker.pkg.dev/parksmart-498918/parksmart-repo/parksmart-frontend:${{ github.sha }}
+
+      # 9. UPDATED STEP: Run Terraform using the password from Secret Manager
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -var="project_id=parksmart-498918" -var="db_password=${{ steps.secrets.outputs.DB_PASSWORD }}"
+        working-directory: ./terraform
