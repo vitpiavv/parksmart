@@ -190,16 +190,6 @@ def reserve_spot(spot_id):
     # Redirect right back to the active location tab view
     return redirect(url_for('main.dashboard', location=spot.location.name))
 
-@main_bp.route('/grant-admin')
-def make_me_admin():
-    # Look for the user named 'admin'
-    user = User.query.filter_by(username='admin').first()
-    if user:
-        user.role = 'admin'
-        db.session.commit()
-        return "Success! The 'admin' user has been granted administrative privileges. You can now delete this route."
-    return "User 'admin' not found. Make sure you have registered an account with the username 'admin' first."
-
 @main_bp.route('/admin/dashboard')
 def admin_dashboard():
     # Security Guardrails: Must be logged in AND an admin
@@ -244,6 +234,27 @@ def update_price(spot_id):
     
     if new_price and new_price > 0:
         spot.price_per_hour = new_price
+        db.session.commit()
+        
+    return redirect(url_for('main.admin_dashboard'))
+
+@main_bp.route('/admin/cancel-booking/<int:booking_id>', methods=['POST'])
+def admin_cancel_booking(booking_id):
+    # Security Guardrail: Only active admins can force-cancel sessions
+    if session.get('role') != 'admin':
+        return "Unauthorized", 403
+
+    # 1. Fetch the targeted booking receipt
+    booking = Booking.query.get_or_404(booking_id)
+    
+    # 2. Safety Check: Only cancel if it's currently active
+    if booking.status == 'active':
+        booking.status = 'cancelled'
+        
+        # 3. Pull the linked physical parking spot and make it available again
+        if booking.spot:
+            booking.spot.is_available = True
+            
         db.session.commit()
         
     return redirect(url_for('main.admin_dashboard'))
