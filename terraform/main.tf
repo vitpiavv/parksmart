@@ -204,16 +204,3 @@ resource "google_storage_bucket_iam_member" "bucket_uploader" {
   member = "serviceAccount:${google_service_account.cloud_run_sa.email}"
 }
 
-variable "project_id" {
-  type = string
-}
-
-variable "region" {
-  type    = string
-  default = "us-central1"
-}
-
-variable "db_password" {
-  type      = string
-  sensitive = true
-}
