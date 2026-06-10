@@ -52,3 +52,41 @@ def login():
     session['role'] = user.role
 
     return redirect(url_for('main.welcome'))
+
+@main_bp.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'GET':
+        return render_template('login.html')
+        
+    username = request.form.get('username')
+    password = request.form.get('password')
+
+    user = User.query.filter_by(username=username).first()
+
+    if not user or not user.check_password(password):
+        return "Invalid credentials", 401
+
+    session['user_id'] = user.id
+    session['username'] = user.username
+    session['role'] = user.role
+
+    # CHANGED: Redirect straight to the dashboard instead of welcome page
+    return redirect(url_for('main.dashboard'))
+
+
+#  Protected Dashboard Route
+@main_bp.route('/dashboard')
+def dashboard():
+    # Force redirect to login if an anonymous user tries to access the dashboard directly
+    if not session.get('user_id'):
+        return redirect(url_for('main.login'))
+        
+    return render_template('dashboard.html')
+
+
+#  Logout Route
+@main_bp.route('/logout')
+def logout():
+    # Clear the session cookie completely
+    session.clear()
+    return redirect(url_for('main.welcome'))
