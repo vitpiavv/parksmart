@@ -98,6 +98,8 @@ def dashboard():
 
 @main_bp.route('/seed-spots')
 def seed_spots():
+    from app import db
+    
     db.create_all()
     
     # 1. Seed Locations
@@ -121,11 +123,9 @@ def seed_spots():
         sample_spots = []
 
         # Generate 10 Premium Seattle Spots (SEA-01 through SEA-10) at $7.50/hr
-        # Alternate availability states so the dashboard UI shows realistic activity
         for i in range(1, 11):
-            # Formats single digits cleanly with a leading zero (e.g., SEA-01, SEA-02)
             spot_num = f"SEA-{i:02d}"
-            is_avail =True,
+            is_avail = True 
             sample_spots.append(
                 ParkingSpot(
                     spot_number=spot_num, 
@@ -138,7 +138,7 @@ def seed_spots():
         # Generate 10 Economy Tacoma Spots (TAC-01 through TAC-10) at $4.00/hr
         for i in range(1, 11):
             spot_num = f"TAC-{i:02d}"
-            is_avail = True,
+            is_avail = True  # 💡 FIX: Removed the trailing comma so this remains a boolean
             sample_spots.append(
                 ParkingSpot(
                     spot_number=spot_num, 
