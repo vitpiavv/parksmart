@@ -37,6 +37,7 @@ class ParkingSpot(db.Model):
     
     # Foreign Key pointing to the Location table
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=False)
+    
 
 
 class Booking(db.Model):

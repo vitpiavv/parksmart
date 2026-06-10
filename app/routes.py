@@ -125,7 +125,7 @@ def seed_spots():
         for i in range(1, 11):
             # Formats single digits cleanly with a leading zero (e.g., SEA-01, SEA-02)
             spot_num = f"SEA-{i:02d}"
-            is_avail = (i % 3 != 0) # Every third spot is occupied
+            is_avail =True,
             sample_spots.append(
                 ParkingSpot(
                     spot_number=spot_num, 
@@ -138,7 +138,7 @@ def seed_spots():
         # Generate 10 Economy Tacoma Spots (TAC-01 through TAC-10) at $4.00/hr
         for i in range(1, 11):
             spot_num = f"TAC-{i:02d}"
-            is_avail = (i % 4 != 0) # Every fourth spot is occupied
+            is_avail = True,
             sample_spots.append(
                 ParkingSpot(
                     spot_number=spot_num, 
@@ -258,3 +258,18 @@ def admin_cancel_booking(booking_id):
         db.session.commit()
         
     return redirect(url_for('main.admin_dashboard'))
+
+@main_bp.route('/promote-admin')
+def promote_admin():
+    from app import db
+    
+    # Locate the target user profile
+    user = User.query.filter_by(username='admin').first()
+    if not user:
+        return "User 'admin' not found. Please register an account with the username 'admin' first.", 404
+        
+    # Elevate access rights
+    user.role = 'admin'
+    db.session.commit()
+    
+    return "Success! The user 'admin' has been promoted to admin privileges."
