@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, session, render_template, redirect, url_for
-from app.models import db, User
+from app.models import db, User, ParkingSpot
 
 main_bp = Blueprint('main', __name__)
 
@@ -14,7 +14,7 @@ def register():
 
     if request.method == 'GET':
         return render_template('register.html')
-        
+
     if request.method == 'GET':
         return render_template('register.html')
         
@@ -67,10 +67,27 @@ def login():
 def dashboard():
     if not session.get('user_id'):
         return redirect(url_for('main.login'))
-        
+
+    spots = ParkingSpot.query.all()    
     return render_template('dashboard.html')
 
 @main_bp.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('main.welcome'))
+
+@main_bp.route('/seed-spots')
+def seed_spots():
+    # Only seed if the table is currently empty to avoid duplicates
+    if ParkingSpot.query.count() == 0:
+        sample_spots = [
+            ParkingSpot(spot_number="A-101", level="G1", is_available=True, price_per_hour=5.00),
+            ParkingSpot(spot_number="A-102", level="G1", is_available=False, price_per_hour=5.00),
+            ParkingSpot(spot_number="B-201", level="G2", is_available=True, price_per_hour=7.50),
+            ParkingSpot(spot_number="B-202", level="G2", is_available=True, price_per_hour=7.50)
+        ]
+        db.session.bulk_save_objects(sample_spots)
+        db.session.commit()
+        return "Database successfully seeded with 4 parking spots! Go back to /dashboard."
+    
+    return "Spots already exist in the database. Go back to /dashboard."
