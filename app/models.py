@@ -45,3 +45,4 @@ class Booking(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     spot_id = db.Column(db.Integer, db.ForeignKey('parking_spots.id'), nullable=False)
     status = db.Column(db.String(20), default='active') # active, completed, cancelled
+    spot = db.relationship('ParkingSpot', backref='bookings', lazy=True)

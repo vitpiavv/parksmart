@@ -22,20 +22,22 @@
             </h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {% for booking in active_bookings %}
-                    <div class="bg-white p-4 rounded-lg border border-emerald-100 shadow-xs flex justify-between items-center">
-                        <div>
-                            <p class="font-bold text-gray-900 text-lg">Spot {{ booking.spot.spot_number }}</p>
-                            <p class="text-xs text-gray-500">{{ booking.spot.location.name }}</p>
+                    {% if booking.spot %}
+                        <div class="bg-white p-4 rounded-lg border border-emerald-100 shadow-xs flex justify-between items-center">
+                            <div>
+                                <p class="font-bold text-gray-900 text-lg">Spot {{ booking.spot.spot_number }}</p>
+                                <p class="text-xs text-gray-500">{{ booking.spot.location.name }}</p>
+                            </div>
+                            <span class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded">
+                                Secured & Active
+                            </span>
                         </div>
-                        <span class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded">
-                            Secured & Active
-                        </span>
-                    </div>
+                    {% endif %}
                 {% endfor %}
             </div>
         </div>
     {% endif %}
-
+    
     {% if locations %}
     <div class="border-b border-gray-200 flex gap-2">
         {% for loc in locations %}
