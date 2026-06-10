@@ -1,0 +1,114 @@
+name: ParkSmart DevSecOps Continuous Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write # Required for WIF in BOTH jobs
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  PROJECT_NUMBER: ${{ secrets.GCP_PROJECT_NUMBER }}
+  REGION: 'us-central1'
+  GAR_REPO: 'parksmart-repo'
+  IMAGE_NAME: 'parksmart-frontend'
+  WIF_POOL: 'parksmart-pool'
+  WIF_PROVIDER: 'parksmart-provider'
+  TF_WORKING_DIR: './terraform'
+
+jobs:
+  security_scan:
+    name: Snyk Code Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          workload_identity_provider: 'projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/${{ env.WIF_POOL }}/providers/${{ env.WIF_PROVIDER }}'
+          service_account: 'github-deployer@${{ env.PROJECT_ID }}.iam.gserviceaccount.com'
+
+      - id: 'secrets'
+        name: 'Fetch Secrets from GCP Secret Manager'
+        uses: 'google-github-actions/get-secretmanager-secrets@v2'
+        with:
+          secrets: |-
+            SNYK_TOKEN:projects/${{ env.PROJECT_ID }}/secrets/snyk-token/versions/latest
+
+      - name: Run Snyk Code Scan (SAST)
+        uses: snyk/actions/python@master
+        env:
+          SNYK_TOKEN: ${{ steps.secrets.outputs.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
+  # ==========================================
+  # JOB 2: BUILD AND DEPLOY (DEPENDS ON JOB 1)
+  # ==========================================
+  deploy:
+    name: Build, Scan, and Deploy
+    runs-on: ubuntu-latest
+    needs: security_scan 
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          workload_identity_provider: 'projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/${{ env.WIF_POOL }}/providers/${{ env.WIF_PROVIDER }}'
+          service_account: 'github-deployer@${{ env.PROJECT_ID }}.iam.gserviceaccount.com'
+
+      - id: 'secrets'
+        name: 'Fetch Secrets from GCP Secret Manager'
+        uses: 'google-github-actions/get-secretmanager-secrets@v2'
+        with:
+          secrets: |-
+            DB_PASSWORD:projects/${{ env.PROJECT_ID }}/secrets/db-password/versions/latest
+            SNYK_TOKEN:projects/${{ env.PROJECT_ID }}/secrets/snyk-token/versions/latest
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.5.7'
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        run: |
+          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+
+      - name: Run Snyk to check Docker image for vulnerabilities (Container Scan)
+        uses: snyk/actions/docker@master
+        env:
+          SNYK_TOKEN: ${{ steps.secrets.outputs.SNYK_TOKEN }}
+        with:
+          image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          args: --file=Dockerfile --severity-threshold=high
+
+      - name: Configure Docker for GCP
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Push Docker Image
+        run: |
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Terraform Apply
+        run: |
+          terraform apply -auto-approve \
+            -var="project_id=${{ env.PROJECT_ID }}" \
+            -var="db_password=${{ steps.secrets.outputs.DB_PASSWORD }}" \
+            -var="container_image=  ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+        working-directory: ${{ env.TF_WORKING_DIR }}

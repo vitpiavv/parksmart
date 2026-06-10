@@ -1,3 +1,13 @@
+# ParkSmart
+
+**Smart Parking Management System** by ParkWise Solutions.
+
+ParkSmart helps drivers locate, reserve, and manage parking spaces online. Administrators monitor availability, manage users, update spot status, and view reservation activity through a REST API.
+
+This repository contains the **backend API**, **GCP infrastructure (Terraform)**, and **CI/CD pipelines**. Frontend and additional integrations can be added alongside this codebase.
+
+
+
 Security
 
 ParkSmart follows secure software development and DevSecOps practices throughout the application lifecycle. Security controls have been implemented across authentication, cloud infrastructure, secret management, container security, and CI/CD automation.

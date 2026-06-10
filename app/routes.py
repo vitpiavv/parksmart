@@ -96,99 +96,7 @@ def dashboard():
         active_bookings=active_bookings
     )
 
-@main_bp.route('/seed-spots')
-def seed_spots():
-    db.create_all()
-    
-    # 1. Seed Locations
-    if Location.query.count() == 0:
-        seattle = Location(
-            name="Seattle Downtown Lot", 
-            address="2764 1st Ave S, Seattle, WA 98134"
-        )
-        tacoma = Location(
-            name="East Tacoma Lot", 
-            address="2617 E L St, Tacoma, WA 98421"
-        )
-        db.session.add_all([seattle, tacoma])
-        db.session.commit()
-        
-    # 2. Seed an expanded collection of 10 Parking Spots per lot
-    if ParkingSpot.query.count() == 0:
-        seattle_id = Location.query.filter_by(name="Seattle Downtown Lot").first().id
-        tacoma_id = Location.query.filter_by(name="East Tacoma Lot").first().id
 
-        sample_spots = []
-
-        # Generate 10 Premium Seattle Spots (SEA-01 through SEA-10) at $7.50/hr
-        # Alternate availability states so the dashboard UI shows realistic activity
-        for i in range(1, 11):
-            # Formats single digits cleanly with a leading zero (e.g., SEA-01, SEA-02)
-            spot_num = f"SEA-{i:02d}"
-            is_avail =True
-            sample_spots.append(
-                ParkingSpot(
-                    spot_number=spot_num, 
-                    is_available=is_avail, 
-                    price_per_hour=7.50, 
-                    location_id=seattle_id
-                )
-            )
-
-        # Generate 10 Economy Tacoma Spots (TAC-01 through TAC-10) at $4.00/hr
-        for i in range(1, 11):
-            spot_num = f"TAC-{i:02d}"
-            is_avail = True
-            sample_spots.append(
-                ParkingSpot(
-                    spot_number=spot_num, 
-                    is_available=is_avail, 
-                    price_per_hour=4.00, 
-                    location_id=tacoma_id
-                )
-            )
-
-        db.session.bulk_save_objects(sample_spots)
-        db.session.commit()
-        return "Database successfully seeded with 20 premium and economy spots across Seattle & Tacoma! Go back to /dashboard."
-    
-    return "Data already exists."
-
-@main_bp.route('/clear-db')
-def clear_db():
-    try:
-        # Drops all tables defined in your models tracking
-        db.drop_all()
-        return "Database tables successfully dropped! Your Cloud SQL instance is now a clean slate. Time to push your updated models."
-    except Exception as e:
-        return f"An error occurred while clearing the database: {str(e)}", 500
-
-@main_bp.route('/reserve/<int:spot_id>', methods=['POST'])
-def reserve_spot(spot_id):
-    if not session.get('user_id'):
-        return redirect(url_for('main.login'))
-
-    # Fetch the spot and ensure it's actually available
-    spot = ParkingSpot.query.get_or_404(spot_id)
-    if not spot.is_available:
-        # If someone else beat them to it, bounce back with a note (or silent refresh)
-        return redirect(url_for('main.dashboard', location=spot.location.name))
-
-    # Transaction: 1. Mark spot as occupied
-    spot.is_available = False
-
-    # Transaction: 2. Create the booking receipt record
-    new_booking = Booking(
-        user_id=session['user_id'],
-        spot_id=spot.id,
-        status='active'
-    )
-    
-    db.session.add(new_booking)
-    db.session.commit()
-
-    # Redirect right back to the active location tab view
-    return redirect(url_for('main.dashboard', location=spot.location.name))
 
 @main_bp.route('/admin/dashboard')
 def admin_dashboard():
@@ -258,13 +166,3 @@ def admin_cancel_booking(booking_id):
         db.session.commit()
         
     return redirect(url_for('main.admin_dashboard'))
-
-@main_bp.route('/make-me-admin')
-def make_me_admin():
-    # Look for the user named 'admin'
-    user = User.query.filter_by(username='admin').first()
-    if user:
-        user.role = 'admin'
-        db.session.commit()
-        return "Success! The 'admin' user has been granted administrative privileges. You can now delete this route."
-    return "User 'admin' not found. Make sure you have registered an account with the username 'admin' first."
