@@ -1,4 +1,4 @@
-name: ParkSmart DevSecOps Continuous Deployment
+name: ParkSmart Snyk SAST Scan
 
 on:
   push:
