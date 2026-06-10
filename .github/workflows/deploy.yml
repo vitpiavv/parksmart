@@ -10,11 +10,14 @@ permissions:
   id-token: write # Strictly required for GCP Workload Identity Federation
 
 env:
-  PROJECT_ID: 'parksmart-498918'
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  PROJECT_NUMBER: ${{ secrets.GCP_PROJECT_NUMBER }}
   REGION: 'us-central1'
   GAR_REPO: 'parksmart-repo'
-  IMAGE_NAME: 'parksmart-app'
-  TF_WORKING_DIR: './terraform' # Change to '.' if your TF files are in the root directory
+  IMAGE_NAME: 'parksmart-frontend' # Consistent with your build steps
+  WIF_POOL: 'parksmart-pool'
+  WIF_PROVIDER: 'parksmart-provider'
+  TF_WORKING_DIR: './terraform'
 
 jobs:
   deploy:
@@ -30,17 +33,17 @@ jobs:
         name: 'Authenticate to Google Cloud'
         uses: 'google-github-actions/auth@v2'
         with:
-          workload_identity_provider: 'projects/913391093003/locations/global/workloadIdentityPools/parksmart-pool/providers/parksmart-provider'
-          service_account: 'github-deployer@parksmart-498918.iam.gserviceaccount.com'
+          workload_identity_provider: 'projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/${{ env.WIF_POOL }}/providers/${{ env.WIF_PROVIDER }}'
+          service_account: 'github-deployer@${{ env.PROJECT_ID }}.iam.gserviceaccount.com'
 
-      # 2. NEW STEP: Fetch Secrets Natively from Google Secret Manager
+      # 2. Fetch Secrets Natively from Google Secret Manager
       - id: 'secrets'
         name: 'Fetch Secrets from GCP Secret Manager'
         uses: 'google-github-actions/get-secretmanager-secrets@v2'
         with:
           secrets: |-
-            DB_PASSWORD:projects/parksmart-498918/secrets/db-password/versions/latest
-            SNYK_TOKEN:projects/parksmart-498918/secrets/snyk-token/versions/latest
+            DB_PASSWORD:projects/${{ env.PROJECT_ID }}/secrets/db-password/versions/latest
+            SNYK_TOKEN:projects/${{ env.PROJECT_ID }}/secrets/snyk-token/versions/latest
 
       # 3. Set up Terraform CLI
       - name: Set up Terraform
@@ -51,39 +54,40 @@ jobs:
       # 4. Initialize Terraform
       - name: Terraform Init
         run: terraform init
-        working-directory: ./terraform
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
       # 5. Build the application image 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Using dynamic registry paths via env variables
       - name: Build Docker Image
         run: |
-          docker build -t us-central1-docker.pkg.dev/parksmart-498918/parksmart-repo/parksmart-frontend:${{ github.sha }} .
+          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
 
-      # 6. UPDATED STEP: Swap Trivy for Snyk Container Scan
+      # 6. Swap Trivy for Snyk Container Scan
       - name: Run Snyk to check Docker image for vulnerabilities
         uses: snyk/actions/docker@master
         env:
           SNYK_TOKEN: ${{ steps.secrets.outputs.SNYK_TOKEN }}
         with:
-          image: us-central1-docker.pkg.dev/parksmart-498918/parksmart-repo/parksmart-frontend:${{ github.sha }}
+          image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           args: --file=Dockerfile --severity-threshold=high
 
       # 7. Configure Docker credential helper
       - name: Configure Docker for GCP
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
       # 8. Push Image to Artifact Registry
       - name: Push Docker Image
         run: |
-          docker push us-central1-docker.pkg.dev/parksmart-498918/parksmart-repo/parksmart-frontend:${{ github.sha }}
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
       # 9. Run Terraform using the password from Secret Manager and the dynamic container image
       - name: Terraform Apply
         run: |
           terraform apply -auto-approve \
-            -var="project_id=parksmart-498918" \
+            -var="project_id=${{ env.PROJECT_ID }}" \
             -var="db_password=${{ steps.secrets.outputs.DB_PASSWORD }}" \
-            -var="container_image=us-central1-docker.pkg.dev/parksmart-498918/parksmart-repo/parksmart-frontend:${{ github.sha }}"
-        working-directory: ./terraform
+            -var="container_image=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+        working-directory: ${{ env.TF_WORKING_DIR }}
