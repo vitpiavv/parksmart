@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="text-center py-12 max-w-2xl mx-auto">
+    <h1 class="text-5xl font-extrabold text-gray-900 mb-4 tracking-tight">
+        Smart Parking, <span class="text-blue-600">Simplified.</span>
+    </h1>
+    <p class="text-lg text-gray-600 mb-8">
+        Reserve secure parking spots instantly, manage your bookings seamlessly, and completely skip the hassle of looking for a space.
+    </p>
+    <div class="space-x-4">
+        <a href="/register" class="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium shadow-md hover:bg-blue-700 transition">Get Started</a>
+        <a href="/login" class="border border-gray-300 bg-white text-gray-700 px-6 py-3 rounded-lg font-medium shadow-sm hover:bg-gray-50 transition">Sign In</a>
+    </div>
+</div>
+{% endblock %}
+</html>
