@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, session, render_template, redirect, url_for
-from app.models import db, User, ParkingSpot, Location
+from app.models import db, User, ParkingSpot, Location, Booking
 
 main_bp = Blueprint('main', __name__)
 
@@ -71,9 +71,30 @@ def logout():
 @main_bp.route('/dashboard')
 def dashboard():
     if not session.get('user_id'):
-        return redirect(url_for('main.login'))        
-    spots = ParkingSpot.query.all()
-    return render_template('dashboard.html', spots=spots)
+        return redirect(url_for('main.login'))
+        
+    # 1. Get all available locations for our tab switcher
+    locations = Location.query.all()
+    if not locations:
+        return render_template('dashboard.html', locations=[], selected_location=None, spots=[], active_bookings=[])
+
+    # 2. Determine which location is currently selected (default to the first one)
+    selected_location_name = request.args.get('location', locations[0].name)
+    selected_location = Location.query.filter_by(name=selected_location_name).first()
+
+    # 3. Get spots only for the selected location
+    spots = ParkingSpot.query.filter_by(location_id=selected_location.id).order_by(ParkingSpot.spot_number).all() if selected_location else []
+
+    # 4. Fetch any active bookings for the current user to display at the top
+    active_bookings = Booking.query.filter_by(user_id=session['user_id'], status='active').all()
+
+    return render_template(
+        'dashboard.html', 
+        locations=locations, 
+        selected_location=selected_location, 
+        spots=spots,
+        active_bookings=active_bookings
+    )
 
 @main_bp.route('/seed-spots')
 def seed_spots():
@@ -141,3 +162,30 @@ def clear_db():
         return "Database tables successfully dropped! Your Cloud SQL instance is now a clean slate. Time to push your updated models."
     except Exception as e:
         return f"An error occurred while clearing the database: {str(e)}", 500
+
+@main_bp.route('/reserve/<int:spot_id>', methods=['POST'])
+def reserve_spot(spot_id):
+    if not session.get('user_id'):
+        return redirect(url_for('main.login'))
+
+    # Fetch the spot and ensure it's actually available
+    spot = ParkingSpot.query.get_or_404(spot_id)
+    if not spot.is_available:
+        # If someone else beat them to it, bounce back with a note (or silent refresh)
+        return redirect(url_for('main.dashboard', location=spot.location.name))
+
+    # Transaction: 1. Mark spot as occupied
+    spot.is_available = False
+
+    # Transaction: 2. Create the booking receipt record
+    new_booking = Booking(
+        user_id=session['user_id'],
+        spot_id=spot.id,
+        status='active'
+    )
+    
+    db.session.add(new_booking)
+    db.session.commit()
+
+    # Redirect right back to the active location tab view
+    return redirect(url_for('main.dashboard', location=spot.location.name))
