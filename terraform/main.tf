@@ -7,30 +7,77 @@ terraform {
     }
   }
   backend "gcs" {
-    bucket = "parksmart-498918-tf-state" # Must match the bucket you just created
+    bucket = "parksmart-498918-tf-state"
     prefix = "terraform/state"
   }
 }
-# Note: For production, configure a GCS backend here to store your state file securely
 
 provider "google" {
   project = var.project_id
   region  = var.region
 }
 
-# 1. Enable Required GCP APIs
+# 1. Enable Required GCP APIs (Added Compute & Service Networking)
 resource "google_project_service" "services" {
   for_each = toset([
     "run.googleapis.com",
     "sqladmin.googleapis.com",
     "secretmanager.googleapis.com",
-    "artifactregistry.googleapis.com"
+    "artifactregistry.googleapis.com",
+    "compute.googleapis.com",
+    "servicenetworking.googleapis.com",
+    "vpcaccess.googleapis.com"
   ])
   service            = each.key
   disable_on_destroy = false
 }
 
-# 2. Artifact Registry for Container Storage
+# ==========================================
+# NEW NETWORKING RESOURCES FOR PRIVATE VPC
+# ==========================================
+
+# Create the Private VPC Network
+resource "google_compute_network" "vpc_network" {
+  depends_on              = [google_project_service.services]
+  name                    = "parksmart-vpc"
+  auto_create_subnetworks = true # Keeps it simple, provisions standard subnets automatically
+}
+
+# Allocate an internal IP range for Google Services (like Cloud SQL) inside our VPC
+resource "google_compute_global_address" "private_ip_alloc" {
+  name          = "parksmart-private-ip-alloc"
+  purpose       = "VPC_PEERING"
+  address_type  = "INTERNAL"
+  prefix_length = 16
+  network       = google_compute_network.vpc_network.id
+}
+
+# Establish the Private Services Connection (VPC Peering with Google Services)
+resource "google_service_networking_connection" "private_vpc_connection" {
+  network                 = google_compute_network.vpc_network.id
+  service                 = "servicenetworking.googleapis.com"
+  reserved_peering_ranges = [google_compute_global_address.private_ip_alloc.name]
+}
+
+# Create a Serverless VPC Access Connector so Cloud Run can talk to the VPC
+resource "google_vpc_access_connector" "vpc_connector" {
+  depends_on = [google_service_networking_connection.private_vpc_connection]
+  name       = "parksmart-connector"
+  region     = var.region
+  
+  # The connector requires its own dedicated /28 subnet slice not used elsewhere
+  ip_cidr_range = "10.8.0.0/28"
+  network       = google_compute_network.vpc_network.name
+  
+  min_instances = 2
+  max_instances = 3
+}
+
+# ==========================================
+# EXISTING INFRASTRUCTURE (UPDATED FOR VPC)
+# ==========================================
+
+# Artifact Registry for Container Storage
 resource "google_artifact_registry_repository" "repo" {
   depends_on    = [google_project_service.services]
   location      = var.region
@@ -39,26 +86,30 @@ resource "google_artifact_registry_repository" "repo" {
   format        = "DOCKER"
 }
 
-# 3. Secure Cloud SQL Instance (PostgreSQL)
+# UPDATED: Secure Cloud SQL Instance (Now 100% Private)
 resource "google_sql_database_instance" "postgres" {
-  depends_on       = [google_project_service.services]
+  # Strictly depends on the private connection being fully established first
+  depends_on       = [google_service_networking_connection.private_vpc_connection]
   name             = "parksmart-db-instance"
   database_version = "POSTGRES_15"
   region           = var.region
 
   settings {
-    tier = "db-f1-micro" # Highly cost-effective tier for testing/dev workloads
+    tier = "db-f1-micro"
+    
     ip_configuration {
-      ipv4_enabled = true # Enabled for access, can be restricted to private IP later
+      ipv4_enabled    = false # DISBALE PUBLIC INTERNET IP
+      private_network = google_compute_network.vpc_network.id # Route inside our VPC
     }
   }
-  deletion_protection = false # Set to true for production to prevent accidental loss
+  deletion_protection = false # Set to true for production later
 }
 
 variable "container_image" {
   type        = string
   description = "The full Artifact Registry path and tag for the frontend container"
 }
+
 resource "google_sql_database" "database" {
   name     = "parksmart"
   instance = google_sql_database_instance.postgres.name
@@ -70,7 +121,7 @@ resource "google_sql_user" "db_user" {
   password = var.db_password
 }
 
-# 4. Create Cloud Run Service Account (Least Privilege)
+# Create Cloud Run Service Account
 resource "google_service_account" "cloud_run_sa" {
   account_id   = "parksmart-runner"
   display_name = "Cloud Run Service Account for ParkSmart"
@@ -83,15 +134,21 @@ resource "google_project_iam_member" "sql_client" {
   member  = "serviceAccount:${google_service_account.cloud_run_sa.email}"
 }
 
-# 5. Cloud Run Deployment
+# UPDATED: Cloud Run Deployment
 resource "google_cloud_run_v2_service" "flask_app" {
   depends_on = [google_artifact_registry_repository.repo]
   name       = "parksmart-frontend"
   location   = var.region
-  ingress    = "INGRESS_TRAFFIC_ALL"
+  ingress    = "INGRESS_TRAFFIC_ALL" # Web traffic can still come in publicly from the internet
 
   template {
     service_account = google_service_account.cloud_run_sa.email
+
+    # NEW: Tell Cloud Run to route traffic through the VPC connector
+    vpc_access {
+      connector = google_vpc_access_connector.vpc_connector.id
+      egress    = "PRIVATE_RANGES_ONLY" # Send only internal/database traffic through the VPC
+    }
 
     containers {
       image = var.container_image
@@ -100,7 +157,6 @@ resource "google_cloud_run_v2_service" "flask_app" {
         container_port = 8080
       }
 
-      # Inject database connection variables natively
       env {
         name  = "FLASK_ENV"
         value = "production"
@@ -115,7 +171,6 @@ resource "google_cloud_run_v2_service" "flask_app" {
       }
     }
 
-    # Standard Cloud SQL Sidecar connection hook
     volumes {
       name = "cloudsql"
       cloud_sql_instance {
@@ -132,13 +187,14 @@ resource "google_cloud_run_v2_service_iam_member" "public_access" {
   role     = "roles/run.viewer"
   member   = "allUsers"
 }
-# 6. Google Cloud Storage Bucket for ParkSmart
+
+# Google Cloud Storage Bucket for ParkSmart
 resource "google_storage_bucket" "parksmart_bucket" {
   name                        = "${var.project_id}-parksmart-storage"
   location                    = var.region
   storage_class               = "STANDARD"
   uniform_bucket_level_access = true
-  force_destroy               = true # Allows terraform destroy to clear files during testing
+  force_destroy               = true 
 }
 
 # Grant Cloud Run Service Account IAM access to the bucket
@@ -148,3 +204,16 @@ resource "google_storage_bucket_iam_member" "bucket_uploader" {
   member = "serviceAccount:${google_service_account.cloud_run_sa.email}"
 }
 
+variable "project_id" {
+  type = string
+}
+
+variable "region" {
+  type    = string
+  default = "us-central1"
+}
+
+variable "db_password" {
+  type      = string
+  sensitive = true
+}
