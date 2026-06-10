@@ -190,6 +190,16 @@ def reserve_spot(spot_id):
     # Redirect right back to the active location tab view
     return redirect(url_for('main.dashboard', location=spot.location.name))
 
+@main_bp.route('/grant-admin')
+def make_me_admin():
+    # Look for the user named 'admin'
+    user = User.query.filter_by(username='admin').first()
+    if user:
+        user.role = 'admin'
+        db.session.commit()
+        return "Success! The 'admin' user has been granted administrative privileges. You can now delete this route."
+    return "User 'admin' not found. Make sure you have registered an account with the username 'admin' first."
+
 @main_bp.route('/admin/dashboard')
 def admin_dashboard():
     # Security Guardrails: Must be logged in AND an admin
