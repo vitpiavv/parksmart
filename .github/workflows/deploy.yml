@@ -83,11 +83,7 @@ jobs:
         run: |
           docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      # 9. Run Terraform using the password from Secret Manager and the dynamic container image
+      # 9. Run Terraform Apply (Inline execution to completely bypass bash multi-line parsing errors)
       - name: Terraform Apply
-        run: |
-          terraform apply -auto-approve \
-            -var="project_id=${{ env.PROJECT_ID }}" \
-            -var="db_password=${{ steps.secrets.outputs.DB_PASSWORD }}" \
-            -var="container_image=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+        run: terraform apply -auto-approve -var="project_id=${{ env.PROJECT_ID }}" -var="db_password=${{ steps.secrets.outputs.DB_PASSWORD }}" -var="container_image=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
         working-directory: ${{ env.TF_WORKING_DIR }}
