@@ -79,6 +79,7 @@ def logout():
 @main_bp.route('/seed-spots')
 def seed_spots():
     # Only seed if the table is currently empty to avoid duplicates
+    db.create_all()
     if ParkingSpot.query.count() == 0:
         sample_spots = [
             ParkingSpot(spot_number="A-101", level="G1", is_available=True, price_per_hour=5.00),
