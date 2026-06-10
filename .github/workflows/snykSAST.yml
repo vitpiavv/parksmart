@@ -1,4 +1,4 @@
-name: ParkSmart DevSecOps Continuous Deployment
+name: ParkSmart Snyk SAST Scan
 
 on:
   push:
@@ -42,7 +42,7 @@ jobs:
             SNYK_TOKEN:projects/${{ env.PROJECT_ID }}/secrets/snyk-token/versions/latest
 
       - name: Run Snyk Code Scan (SAST)
-        uses: snyk/actions/python@master
+        uses: snyk/actions/code@master
         env:
           SNYK_TOKEN: ${{ steps.secrets.outputs.SNYK_TOKEN }}
         with:
