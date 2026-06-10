@@ -21,6 +21,13 @@ class User(db.Model):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
+class Location(db.Model):
+    __tablename__ = 'locations'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    address = db.Column(db.String(255), nullable=True)
+    
+    spots = db.relationship('ParkingSpot', backref='location', lazy=True)
 
 class ParkingSpot(db.Model):
     __tablename__ = 'parking_spots'
@@ -29,8 +36,7 @@ class ParkingSpot(db.Model):
     is_available = db.Column(db.Boolean, default=True)
     price_per_hour = db.Column(db.Float, nullable=False)
     
-    bookings = db.relationship('Booking', backref='spot', lazy=True)
-
+    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=False)
 
 class Booking(db.Model):
     __tablename__ = 'bookings'
