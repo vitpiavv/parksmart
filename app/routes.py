@@ -14,9 +14,6 @@ def register():
 
     if request.method == 'GET':
         return render_template('register.html')
-
-    if request.method == 'GET':
-        return render_template('register.html')
         
     username = request.form.get('username')
     email = request.form.get('email')
@@ -36,15 +33,10 @@ def register():
     
     return redirect(url_for('main.login'))
 
-
-
 @main_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if session.get('user_id'):
         return redirect(url_for('main.dashboard'))
-
-    if request.method == 'GET':
-        return render_template('login.html')
 
     if request.method == 'GET':
         return render_template('login.html')
@@ -96,29 +88,48 @@ def dashboard():
         active_bookings=active_bookings
     )
 
+@main_bp.route('/reserve/<int:spot_id>', methods=['POST'])
+def reserve_spot(spot_id):
+    if not session.get('user_id'):
+        return redirect(url_for('main.login'))
 
+    spot = ParkingSpot.query.get_or_404(spot_id)
+    if not spot.is_available:
+        return redirect(url_for('main.dashboard'))
+
+    # Mark the physical infrastructure space as occupied
+    spot.is_available = False
+
+    # Instantiate the booking transaction using standard system fallbacks
+    new_booking = Booking(
+        user_id=session['user_id'],
+        spot_id=spot.id,
+        status='active',
+        hours=1,               # Defaulting to a 1-hour session baseline
+        license_plate="SYSTEM" # Default placeholder string since form has no raw input fields
+    )
+    
+    db.session.add(new_booking)
+    db.session.commit()
+
+    return redirect(url_for('main.dashboard'))
 
 @main_bp.route('/admin/dashboard')
 def admin_dashboard():
-    # Security Guardrails: Must be logged in AND an admin
     if not session.get('user_id'):
         return redirect(url_for('main.login'))
     if session.get('role') != 'admin':
         return "Access Denied: Administrative privileges required.", 403
 
-    # 1. Fetch all locations and spots for overview panels
     locations = Location.query.all()
     all_spots = ParkingSpot.query.all()
     
-    # 2. Calculate quick high-level business metrics
     total_spots = len(all_spots)
     occupied_spots = len([s for s in all_spots if not s.is_available])
     available_spots = total_spots - occupied_spots
     
-    # Calculate occupancy rate percentage safely
     occupancy_rate = (occupied_spots / total_spots * 100) if total_spots > 0 else 0
 
-    # 3. Get all active transactions to show who is parked where
     active_bookings = Booking.query.filter_by(status='active').all()
 
     return render_template(
@@ -148,18 +159,13 @@ def update_price(spot_id):
 
 @main_bp.route('/admin/cancel-booking/<int:booking_id>', methods=['POST'])
 def admin_cancel_booking(booking_id):
-    # Security Guardrail: Only active admins can force-cancel sessions
     if session.get('role') != 'admin':
         return "Unauthorized", 403
 
-    # 1. Fetch the targeted booking receipt
     booking = Booking.query.get_or_404(booking_id)
     
-    # 2. Safety Check: Only cancel if it's currently active
     if booking.status == 'active':
         booking.status = 'cancelled'
-        
-        # 3. Pull the linked physical parking spot and make it available again
         if booking.spot:
             booking.spot.is_available = True
             
@@ -167,10 +173,8 @@ def admin_cancel_booking(booking_id):
         
     return redirect(url_for('main.admin_dashboard'))
 
-
 @main_bp.route('/make-me-admin')
 def make_me_admin():
-    # Look for the user named 'admin'
     user = User.query.filter_by(username='admin').first()
     if user:
         user.role = 'admin'
@@ -182,7 +186,6 @@ def make_me_admin():
 def seed_spots():
     db.create_all()
     
-    # 1. Seed Locations using your new specific Pacific Northwest profiles
     if Location.query.count() == 0:
         seattle = Location(
             name="Seattle Downtown Lot", 
@@ -195,17 +198,13 @@ def seed_spots():
         db.session.add_all([seattle, tacoma])
         db.session.commit()
         
-    # 2. Seed an expanded collection of 10 Parking Spots per lot
     if ParkingSpot.query.count() == 0:
         seattle_id = Location.query.filter_by(name="Seattle Downtown Lot").first().id
         tacoma_id = Location.query.filter_by(name="East Tacoma Lot").first().id
 
         sample_spots = []
 
-        # Generate 10 Premium Seattle Spots (SEA-01 through SEA-10) at $7.50/hr
-        # Alternate availability states so the dashboard UI shows realistic activity
         for i in range(1, 11):
-            # Formats single digits cleanly with a leading zero (e.g., SEA-01, SEA-02)
             spot_num = f"SEA-{i:02d}"
             is_avail = True
             sample_spots.append(
@@ -217,7 +216,6 @@ def seed_spots():
                 )
             )
 
-        # Generate 10 Economy Tacoma Spots (TAC-01 through TAC-10) at $4.00/hr
         for i in range(1, 11):
             spot_num = f"TAC-{i:02d}"
             is_avail = True
@@ -239,7 +237,6 @@ def seed_spots():
 @main_bp.route('/clear-db')
 def clear_db():
     try:
-        # Drops all tables defined in your models tracking
         db.drop_all()
         return "Database tables successfully dropped! Your Cloud SQL instance is now a clean slate. Time to push your updated models."
     except Exception as e:

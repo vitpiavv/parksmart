@@ -3,44 +3,48 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+<div class="space-y-6">
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
         <div>
             <h1 class="text-3xl font-bold text-gray-900">User Dashboard</h1>
-            <p class="text-gray-500 mt-1">Welcome back, <span class="font-semibold text-blue-600">{{ session.username }}</span>!</p>
+            <p class="text-gray-500 mt-1">Welcome back, <span class="font-semibold text-blue-600">{{ session.username
+                    }}</span>!</p>
         </div>
         <div class="flex items-center gap-3">
             {% if session.role == 'admin' %}
-                <a href="/admin/dashboard" class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition shadow-xs">
-                    Control Center
-                </a>
+            <a href="/admin/dashboard"
+                class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition shadow-xs">
+                Control Center
+            </a>
             {% endif %}
-            <span class="bg-blue-100 text-blue-800 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider">
+            <span
+                class="bg-blue-100 text-blue-800 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider">
                 {{ session.role }} Account
             </span>
         </div>
     </div>
 
     {% if active_bookings %}
-        <div class="bg-emerald-50 border border-emerald-200 p-5 rounded-xl">
-            <h3 class="text-emerald-900 font-bold text-lg mb-3 flex items-center gap-2">
-                ✅ Your Active Reservations
-            </h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {% for booking in active_bookings %}
-                    {% if booking.spot %}
-                        <div class="bg-white p-4 rounded-lg border border-emerald-100 shadow-xs flex justify-between items-center">
-                            <div>
-                                <p class="font-bold text-gray-900 text-lg">Spot {{ booking.spot.spot_number }}</p>
-                                <p class="text-xs text-gray-500">{{ booking.spot.location.name }}</p>
-                            </div>
-                            <span class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded">
-                                Secured & Active
-                            </span>
-                        </div>
-                    {% endif %}
-                {% endfor %}
+    <div class="bg-emerald-50 border border-emerald-200 p-5 rounded-xl">
+        <h3 class="text-emerald-900 font-bold text-lg mb-3 flex items-center gap-2">
+            ✅ Your Active Reservations
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% for booking in active_bookings %}
+            {% if booking.spot %}
+            <div class="bg-white p-4 rounded-lg border border-emerald-100 shadow-xs flex justify-between items-center">
+                <div>
+                    <p class="font-bold text-gray-900 text-lg">Spot {{ booking.spot.spot_number }}</p>
+                    <p class="text-xs text-gray-500">{{ booking.spot.location.name }}</p>
+                </div>
+                <span class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded">
+                    Secured & Active
+                </span>
             </div>
+            {% endif %}
+            {% endfor %}
         </div>
+    </div>
     {% endif %}
 
     {% if locations %}
@@ -86,7 +90,7 @@
                     <div class="flex items-center text-xs text-green-600 font-semibold mb-3 gap-1">
                         <span class="h-1.5 w-1.5 rounded-full bg-green-500 inline-block animate-pulse"></span> Open
                     </div>
-                    <form action="/reserve/{{ spot.id }}" method="POST">
+                    <form action="{{ url_for('main.reserve_spot', spot_id=spot.id) }}" method="POST">
                         <button type="submit"
                             class="w-full bg-blue-600 text-white text-xs font-semibold py-2 rounded-lg hover:bg-blue-700 transition shadow-xs">
                             Reserve Spot
@@ -120,6 +124,7 @@
         </a>
     </div>
     {% endif %}
+</div>
 {% endblock %}
 
 </html>
