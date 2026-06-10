@@ -55,6 +55,10 @@ resource "google_sql_database_instance" "postgres" {
   deletion_protection = false # Set to true for production to prevent accidental loss
 }
 
+variable "container_image" {
+  type        = string
+  description = "The full Artifact Registry path and tag for the frontend container"
+}
 resource "google_sql_database" "database" {
   name     = "parksmart"
   instance = google_sql_database_instance.postgres.name
@@ -90,13 +94,13 @@ resource "google_cloud_run_v2_service" "flask_app" {
     service_account = google_service_account.cloud_run_sa.email
 
     containers {
-      image = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.repo.repository_id}/parksmart-app:${var.image_tag}"
+      image = var.container_image
 
       ports {
         container_port = 8080
       }
 
-      # Inject database connection variables natively using the modern 'env' blocks
+      # Inject database connection variables natively
       env {
         name  = "FLASK_ENV"
         value = "production"
@@ -143,3 +147,4 @@ resource "google_storage_bucket_iam_member" "bucket_uploader" {
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.cloud_run_sa.email}"
 }
+

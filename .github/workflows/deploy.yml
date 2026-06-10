@@ -79,7 +79,11 @@ jobs:
         run: |
           docker push us-central1-docker.pkg.dev/parksmart-498918/parksmart-repo/parksmart-frontend:${{ github.sha }}
 
-      # 9. UPDATED STEP: Run Terraform using the password from Secret Manager
+      # 9. Run Terraform using the password from Secret Manager and the dynamic container image
       - name: Terraform Apply
-        run: terraform apply -auto-approve -var="project_id=parksmart-498918" -var="db_password=${{ steps.secrets.outputs.DB_PASSWORD }}"
+        run: |
+          terraform apply -auto-approve \
+            -var="project_id=parksmart-498918" \
+            -var="db_password=${{ steps.secrets.outputs.DB_PASSWORD }}" \
+            -var="container_image=us-central1-docker.pkg.dev/parksmart-498918/parksmart-repo/parksmart-frontend:${{ github.sha }}"
         working-directory: ./terraform
