@@ -41,6 +41,16 @@ jobs:
           secrets: |-
             SNYK_TOKEN:projects/${{ env.PROJECT_ID }}/secrets/snyk-token/versions/latest
 
+      # 1. Install Snyk CLI natively on the runner host
+      - name: Install Snyk CLI
+        uses: snyk/actions/setup@master
+
+      # 2. Fire the pure SAST analysis using the native CLI tool
+      - name: Run Snyk Code Scan (SAST)
+        run: snyk code test --severity-threshold=high
+        env:
+          SNYK_TOKEN: ${{ steps.secrets.outputs.SNYK_TOKEN }}
+
       - name: Run Snyk Code Scan (SAST)
         uses: snyk/actions/code@master
         env:
