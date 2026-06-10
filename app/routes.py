@@ -105,3 +105,12 @@ def seed_spots():
         return "Database successfully rebuilt and seeded with locations! Go back to /dashboard."
     
     return "Data already exists. Go back to /dashboard."
+
+@main_bp.route('/clear-db')
+def clear_db():
+    try:
+        # Drops all tables defined in your models tracking
+        db.drop_all()
+        return "Database tables successfully dropped! Your Cloud SQL instance is now a clean slate. Time to push your updated models."
+    except Exception as e:
+        return f"An error occurred while clearing the database: {str(e)}", 500
