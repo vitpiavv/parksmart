@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, session
 from app.models import db, User, ParkingSpot, Booking
 
 # Create a blueprint named 'main'
@@ -6,7 +6,7 @@ main_bp = Blueprint('main', __name__)
 
 @main_bp.route('/')
 def welcome():
-    return "Welcome to ParkSmart! Pipeline is modular and fully secure."
+    return "Welcome to ParkSmart! Pipeline is fully functional."
 
 @main_bp.route('/register', methods=['POST'])
 def register():
@@ -41,5 +41,27 @@ def register():
 
 @main_bp.route('/login', methods=['POST'])
 def login():
-    # Placeholder for authentication inner logic
-    return jsonify({"message": "Login endpoint ready"}), 200
+    data = request.get_json(silent=True) or {}
+    username = data.get('username')
+    password = data.get('password')
+
+    if not username or not password:
+        return jsonify({"error": "Missing username or password"}), 400
+
+    # Look up the user in the database
+    user = User.query.filter_by(username=username).first()
+
+    # Verify user exists and check their hashed password
+    if not user or not user.check_password(password):
+        return jsonify({"error": "Invalid username or password"}), 401
+
+    # 💡 Store user tracking data inside Flask's secure session cookie
+    session['user_id'] = user.id
+    session['username'] = user.username
+    session['role'] = user.role
+
+    return jsonify({
+        "message": f"Welcome back, {user.username}!",
+        "user_id": user.id,
+        "role": user.role
+    }), 200
