@@ -12,6 +12,11 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Bind the database engine to this specific application instance
 db.init_app(app)
 
+with app.app_context():
+    db.create_all()
+
+app.register_blueprint(main_bp)
+
 # Register the routes blueprint
 app.register_blueprint(main_bp)
 
